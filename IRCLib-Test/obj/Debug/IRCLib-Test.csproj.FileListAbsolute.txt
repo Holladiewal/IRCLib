@@ -5,3 +5,10 @@ C:\RiderProjects\IRCLib-Test\IRCLib-Test\bin\Debug\IRClib.pdb
 C:\RiderProjects\IRCLib-Test\IRCLib-Test\obj\Debug\IRCLib-Test.csprojResolveAssemblyReference.cache
 C:\RiderProjects\IRCLib-Test\IRCLib-Test\obj\Debug\IRCLib_Test.exe
 C:\RiderProjects\IRCLib-Test\IRCLib-Test\obj\Debug\IRCLib_Test.pdb
+C:\RiderProjects\IRCLib\IRCLib-Test\bin\Debug\IRCLib_Test.exe
+C:\RiderProjects\IRCLib\IRCLib-Test\bin\Debug\IRCLib_Test.pdb
+C:\RiderProjects\IRCLib\IRCLib-Test\bin\Debug\IRClib.dll
+C:\RiderProjects\IRCLib\IRCLib-Test\bin\Debug\IRClib.pdb
+C:\RiderProjects\IRCLib\IRCLib-Test\obj\Debug\IRCLib-Test.csprojResolveAssemblyReference.cache
+C:\RiderProjects\IRCLib\IRCLib-Test\obj\Debug\IRCLib_Test.exe
+C:\RiderProjects\IRCLib\IRCLib-Test\obj\Debug\IRCLib_Test.pdb

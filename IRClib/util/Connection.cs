@@ -1,34 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Data.Odbc;
 using System.Linq;
 using System.Net;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Security.AccessControl;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading;
-using IRClib.util;
 
 namespace IRClib.util {
-    using System.Net.Sockets;
-
-    public class MessageEventArgs : EventArgs {
-        private readonly string message;
-
-        public MessageEventArgs(string message) {
-            this.message = message;
-        }
-
-        public string GetMessage() {
-            return message;
-        }
-
-
-    }
-
-    public delegate void MessageEventHandler(object o, MessageEventArgs eventArgs);
-
     public class Connection {
 
         Socket socket;
@@ -36,11 +13,20 @@ namespace IRClib.util {
         private string oldRawResponse = "";
         // ReSharper disable once InconsistentNaming
         private readonly Events Events = new Events();
-        public Connection(int port, string addr, bool ipv6) : this(port, IPAddress.Parse(addr), ipv6) { }
+        private readonly int port;
+        private readonly IPAddress addr;
+        
+        public Connection(int port, string addr) : this(port, IPAddress.Parse(addr)) { }
 
-        public Connection(int port, IPAddress addr, bool ipv6) {
+        public Connection(int port, IPAddress addr) {
+            Console.WriteLine(addr.AddressFamily.ToString());
+            socket = new Socket(addr.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            this.port = port;
+            this.addr = addr;
+            Connect();
+        }
 
-            socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        private void Connect() {
             socket.Connect(addr, port);
             while (!socket.Connected) { }
             NetworkStream = new NetworkStream(socket);
@@ -51,7 +37,7 @@ namespace IRClib.util {
                 }
             });
             receiverThread.Start();
-            
+                        
         }
 
         public void Receive() {
@@ -69,14 +55,16 @@ namespace IRClib.util {
             }
             
             foreach (var str in splitResponse.Except(new []{""})) {
-                Events.OnRawMessage(new MessageEventArgs(rawResponse));
+                Events.OnRawMessage(new Events.RawMessageEventArgs(rawResponse, this));
             }
             
-            
+            //TODO ParseMessage
         }
 
         public void Send(string message) {
-            message = message.TrimEnd('\r', '\n').TrimStart('\r', '\n');
+            message = message.Trim('\r', '\n') + "\r\n";
+            var sendBuffer = Encoding.UTF8.GetBytes(message);
+            NetworkStream.Write(sendBuffer, 0, sendBuffer.Length);
         }
     }
 }

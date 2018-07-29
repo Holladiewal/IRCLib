@@ -1,6 +1,8 @@
 ﻿using System;
 using System.IO;
 using System.Net;
+using System.Threading;
+using IRClib;
 using IRClib.util;
 
 namespace IRCLib_Test
@@ -8,26 +10,21 @@ namespace IRCLib_Test
     // ReSharper disable once InconsistentNaming
     
     public class IRClient {
-        static StreamWriter Streamwriter = new StreamWriter(File.OpenWrite("debug.log"));
         public static void Main(string[] args) {
-            const string hostname = "whydoyouhate.me";
-            //var ip = Dns.GetHostEntry(hostname).AddressList[0];
-            var ip = IPAddress.Parse("85.214.251.202");
-            var connection = new Connection(6667, ip, false);
+            var client = new Client("IRCLibTest", "IRCLib", "");
+            
             Events.RawMessage += OnRawMessage;
+
+            Thread.Sleep(5000);
+            //connection.Send("JOIN #testchannel");
+            //connection.Send("PRIVMSG #testchannel :I'm alive!");
         }
 
-        private static void OnRawMessage(object o, MessageEventArgs args) {
-            var message = args.GetMessage();
-            if (string.IsNullOrEmpty(message) || message.Trim().Equals("")) {
-                return;
-            }
+        private static void OnRawMessage(object o, Events.RawMessageEventArgs args) {
+            var message = args.Message;
 
-            if (message.Replace("\n", "").Replace("\r", "").Trim().Length <= 0) return;
+            if (message.Replace("\0", "").Replace("\n", "").Replace("\r", "").Trim().Length <= 0) return;
             
-            
-            //Streamwriter.Write(message.Trim().Replace("\0", ""));
-            //Streamwriter.Flush();
             Console.WriteLine(message.Trim().Replace("\0", ""));
         }
     }
