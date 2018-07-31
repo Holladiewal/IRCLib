@@ -1,4 +1,9 @@
 ﻿using System;
+using System.CodeDom;
+using System.CodeDom.Compiler;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -15,11 +20,25 @@ namespace IRClib.util {
         private readonly Events Events = new Events();
         private readonly int port;
         private readonly IPAddress addr;
+        internal bool pinged = false;
+        private Queue<string> sendQueue = new Queue<string>();
+
+        private Thread queueClearer = new Thread(o => {
+            var conn = (Connection) o;
+            while (true) {
+                if (conn.pinged) {
+                    while (conn.sendQueue.Count > 0) {
+                        conn._send(conn.sendQueue.Dequeue());
+                    }
+                    break;
+                }
+            }
+
+        });
         
         public Connection(int port, string addr) : this(port, IPAddress.Parse(addr)) { }
 
         public Connection(int port, IPAddress addr) {
-            Console.WriteLine(addr.AddressFamily.ToString());
             socket = new Socket(addr.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             this.port = port;
             this.addr = addr;
@@ -37,16 +56,29 @@ namespace IRClib.util {
                 }
             });
             receiverThread.Start();
+            queueClearer.Start(this);
                         
         }
 
+        public static string ToLiteral(string input)
+        {
+            using (var writer = new StringWriter())
+            {
+                using (var provider = CodeDomProvider.CreateProvider("CSharp"))
+                {
+                    provider.GenerateCodeFromExpression(new CodePrimitiveExpression(input), writer, null);
+                    return writer.ToString();
+                }
+            }
+        }
+        
         public void Receive() {
             var buffer = new byte[4096];
             var actuallyRead = NetworkStream.Read(buffer, 0, 4096);
             
-            var rawResponse = oldRawResponse + Encoding.UTF8.GetString(buffer);
-            var splitResponse = rawResponse.Replace("\n", "").Split('\r');
-            if (!splitResponse.Last().EndsWith("\r")) {
+            var rawResponse = oldRawResponse + Encoding.UTF8.GetString(buffer).Replace("\0", "");
+            var splitResponse = rawResponse.Replace("\r", "").Split('\n');
+            if (!splitResponse.Last().EndsWith("\n")) {
                 oldRawResponse = splitResponse.Last();
                 splitResponse[splitResponse.Length - 1] = "";
             }
@@ -55,13 +87,27 @@ namespace IRClib.util {
             }
             
             foreach (var str in splitResponse.Except(new []{""})) {
-                Events.OnRawMessage(new Events.RawMessageEventArgs(rawResponse, this));
+                Events.OnRawMessage(new Events.RawMessageEventArgs(str, this));
             }
             
-            //TODO ParseMessage
         }
 
         public void Send(string message) {
+            if (message == null) return;
+            
+            if (pinged) {
+                _send(message);
+            }
+            else {
+                if (message.StartsWith("NICK") || message.StartsWith("USER") || message.StartsWith("PASS") || message.StartsWith("PONG")) {
+                    _send(message);
+                    return;
+                }
+                sendQueue.Enqueue(message);
+            }
+        }
+
+        private void _send(string message) {
             message = message.Trim('\r', '\n') + "\r\n";
             var sendBuffer = Encoding.UTF8.GetBytes(message);
             NetworkStream.Write(sendBuffer, 0, sendBuffer.Length);

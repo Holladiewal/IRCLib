@@ -1,7 +1,4 @@
 ﻿using System;
-using System.IO;
-using System.Net;
-using System.Threading;
 using IRClib;
 using IRClib.util;
 
@@ -11,13 +8,11 @@ namespace IRCLib_Test
     
     public class IRClient {
         public static void Main(string[] args) {
-            var client = new Client("IRCLibTest", "IRCLib", "");
+            var client = new Client("whydoyouhate.me", 6667, "IRCLibTest", "IRCLib", "", "I am an IRCLib");
             
             Events.RawMessage += OnRawMessage;
+            Events.Message += OnMessage;
 
-            Thread.Sleep(5000);
-            //connection.Send("JOIN #testchannel");
-            //connection.Send("PRIVMSG #testchannel :I'm alive!");
         }
 
         private static void OnRawMessage(object o, Events.RawMessageEventArgs args) {
@@ -25,7 +20,12 @@ namespace IRCLib_Test
 
             if (message.Replace("\0", "").Replace("\n", "").Replace("\r", "").Trim().Length <= 0) return;
             
-            Console.WriteLine(message.Trim().Replace("\0", ""));
+            Console.WriteLine(message.Trim());
+        }
+
+        private static void OnMessage(object o, Events.MessageEventArgs args) {
+            var message = args.GetMessage();
+            Console.WriteLine("Received parsed Message from " + message.hostmask.ToString() + " in " + message.target + ": " + message.message);
         }
     }
     
