@@ -8,6 +8,7 @@ using IRClib.util;
 namespace IRClib {
     public class Client {
         private readonly string _nick;
+        private static readonly Events Events = new Events();
         // TODO
 
         public Client(string hostname, int port, string nick, string username, string password, string realname) {
@@ -41,10 +42,11 @@ namespace IRClib {
                 //Console.WriteLine("Parsing message: " + message);
                 var meta = message.Split(new []{':'}, 2)[0];
 
-                var splitMeta = meta.Split(' ');
+                var splitMeta = meta.Split(new []{' '}, 4);
                 var actor = splitMeta[0];
                 var action = splitMeta[1];
                 var target = splitMeta[2];
+                var remainder = splitMeta.Length > 3 ? splitMeta[3] : ""; 
 
                 if (Regex.IsMatch(action, @"^\d+$")) {
                     // is a numeric
@@ -52,13 +54,25 @@ namespace IRClib {
                 }
                 else {
                     // Not a numeric
-                    var data = message.Split(new []{':'}, 2)[1];
-                    if (action == "PRIVMSG") {
-                        new Events().OnMessage(new Events.MessageEventArgs(new Message(new Hostmask(actor), target, data)));
+
+                    var data = message.Contains(":") ? message.Split(new []{':'}, 2)[1] : remainder;
+
+                    switch (action) {
+                        case "PRIVMSG": {
+                            Events.OnMessage(new Events.MessageEventArgs(new Message(new Hostmask(actor), target, data)));
+                            break;
+                        }
+
+                        case "MODE": {
+                            var senderHostmask =
+                                actor.Contains("!") ? new Hostmask(actor) : new Hostmask("", "", actor);
+                            IRCObject targetObject = target.StartsWith("#") ? (IRCObject) ChannelCache.ByName(target.Remove(0,1)) : UserCache.ByNick(target);
+                            Events.OnModeChangeEvent(new Events.ModeChangeEventArgs(senderHostmask, targetObject, data));
+                            break;
+                        }
                     }
                 }
             }
-            
         }
     }
 }

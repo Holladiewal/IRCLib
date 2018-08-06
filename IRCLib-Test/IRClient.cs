@@ -20,12 +20,12 @@ namespace IRCLib_Test
 
             if (message.Replace("\0", "").Replace("\n", "").Replace("\r", "").Trim().Length <= 0) return;
             
-            Console.WriteLine(message.Trim());
+            // Console.WriteLine(message.Trim());
         }
 
         private static void OnMessage(object o, Events.MessageEventArgs args) {
             var message = args.GetMessage();
-            Console.WriteLine("Received parsed Message from " + message.hostmask.ToString() + " in " + message.target + ": " + message.message);
+            // Console.WriteLine("Received parsed Message from " + message.hostmask.ToString() + " in " + message.target + ": " + message.message);
         }
     }
     

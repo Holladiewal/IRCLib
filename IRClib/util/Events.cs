@@ -4,22 +4,16 @@ using IRClib.Definitions;
 namespace IRClib.util {
     public class Events {
         public class RawMessageEventArgs : EventArgs {
-            private readonly string message;
-            private readonly Connection connection;
-
             public RawMessageEventArgs(string message, Connection connection) {
-                this.message = message;
-                this.connection = connection;
+                Message = message;
+                Connection = connection;
             }
 
-            public string Message {
-                get { return message; }
-            }
+            public string Message { get; }
 
-            public Connection Connection {
-                get { return connection; }
-            }
+            public Connection Connection { get; }
         }
+        
         public class MessageEventArgs : EventArgs {
             private readonly Message message;
 
@@ -31,32 +25,43 @@ namespace IRClib.util {
                 return message;
             }
         }
+        
         public class StringEventArgs : EventArgs {
-            private readonly string _string;
-
             public StringEventArgs(string String) {
-                this._string = String;
+                this.String = String;
             }
 
-            public string GetString() {
-                return _string;
+            public string String { get; }
+        }
+        
+        public class ModeChangeEventArgs : EventArgs {
+            public ModeChangeEventArgs(Hostmask actor, IRCObject target, string changes) {
+                Actor = actor;
+                Target = target;
+                Changes = changes;
             }
+
+            public Hostmask Actor { get; }
+
+            public IRCObject Target { get; }
+
+            public string Changes { get; }
         }
         
         public static event EventHandler<MessageEventArgs> Message;
         public static event EventHandler<RawMessageEventArgs> RawMessage;
-        public static event EventHandler<StringEventArgs> NumericEvent;
+        public static event EventHandler<ModeChangeEventArgs> ModeChange;
 
         public void OnMessage(MessageEventArgs args) {
-            if (Message != null) Message(this, args);
+            Message?.Invoke(this, args);
         }
 
         public void OnRawMessage(RawMessageEventArgs args) {
-            if (RawMessage != null) RawMessage(this, args);
+            RawMessage?.Invoke(this, args);
         }
 
-        public void OnNumericEvent(StringEventArgs args) {
-            if (NumericEvent != null) NumericEvent(this, args);
+        public void OnModeChangeEvent(ModeChangeEventArgs args) {
+            ModeChange?.Invoke(this, args);
         }
     }
 }

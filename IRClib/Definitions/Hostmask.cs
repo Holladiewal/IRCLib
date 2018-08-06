@@ -3,9 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace IRClib.Definitions {
     public class Hostmask {
-        private readonly string nickname;
-        private readonly string ident;
-        private readonly string hostname;
+        private readonly string nickname, ident, hostname;
 
         public Hostmask(string nickname, string ident, string hostname) {
             this.nickname = nickname;
@@ -22,8 +20,12 @@ namespace IRClib.Definitions {
             
         }
 
+        public string Nickname => nickname;
+        public string Ident => ident;
+        public string Hostname => hostname;
+
         public override string ToString() {
-            return String.Format("{0}!{1}@{2}", nickname, ident, hostname);
+            return $"{nickname}!{ident}@{hostname}";
         }
     }
 }

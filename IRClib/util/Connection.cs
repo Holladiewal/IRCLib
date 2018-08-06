@@ -87,6 +87,7 @@ namespace IRClib.util {
             }
             
             foreach (var str in splitResponse.Except(new []{""})) {
+                Console.WriteLine(str);
                 Events.OnRawMessage(new Events.RawMessageEventArgs(str, this));
             }
             
