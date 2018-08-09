@@ -58,6 +58,14 @@ namespace IRClib.Definitions {
         public override bool IsChannel() {
             return true;
         }
+
+        public void AddUser(User user) {
+            if (!_members.Contains(user)) _members.Add(user);
+        }
+
+        public void RemoveUser(User user) {
+            if (!_members.Exists(usr => usr.Equals(user))) _members.RemoveAll(usr => usr.Equals(user));
+        }
     }
     
     

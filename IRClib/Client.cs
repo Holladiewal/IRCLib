@@ -28,10 +28,11 @@ namespace IRClib {
             Events.RawMessage += ParseRawMessage;
         }
 
-        public static void ParseRawMessage(object o, Events.RawMessageEventArgs args) {
+        public void ParseRawMessage(object o, Events.RawMessageEventArgs args) {
             var message = args.Message;
             if (message[0] != ':') {
                 var splitMessage = message.Split(new []{':'}, 2);
+                // ReSharper disable once InvertIf
                 if (splitMessage[0].Contains("PING")) {
                     args.Connection.Send("PONG :" + splitMessage[1]);
                     args.Connection.pinged = true;
@@ -68,6 +69,39 @@ namespace IRClib {
                                 actor.Contains("!") ? new Hostmask(actor) : new Hostmask("", "", actor);
                             IRCObject targetObject = target.StartsWith("#") ? (IRCObject) ChannelCache.ByName(target.Remove(0,1)) : UserCache.ByNick(target);
                             Events.OnModeChangeEvent(new Events.ModeChangeEventArgs(senderHostmask, targetObject, data));
+                            break;
+                        }
+
+                        case "JOIN": {
+                            if (actor.Remove(actor.IndexOf("!", StringComparison.Ordinal)) == _nick) {
+                                // WE joined a channel
+                                ChannelCache.PutChannel(new Channel(target.Remove(0,1), ""));
+                            } else {
+                                // somebody else joined a channel we are in
+                                var usr = UserCache.ByHostmask(new Hostmask(actor));
+                                usr = usr ?? new User(new Hostmask(actor)); 
+                                ChannelCache.ByName(target.Remove(0, 1)).AddUser(usr);
+                            }
+
+                            break;
+                        }
+
+                        case "PART": {
+                            if (actor.Remove(actor.IndexOf("!", StringComparison.Ordinal)) == _nick) {
+                                // WE left a channel
+                                ChannelCache.RemoveChannelByName(target.Remove(0, 1));
+                            } else {
+                                // somebody else left a channel we are in
+                                var usr = UserCache.ByHostmask(new Hostmask(actor));
+                                usr = usr ?? new User(new Hostmask(actor)); 
+                                ChannelCache.ByName(target.Remove(0, 1)).RemoveUser(usr);
+                            }
+
+                            break; 
+                        }
+
+                        case "NOTICE": {
+                            Events.OnNotice(new Events.MessageEventArgs(new Message(new Hostmask(actor), target, data)));
                             break;
                         }
                     }

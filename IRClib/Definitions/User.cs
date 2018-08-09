@@ -23,6 +23,8 @@ namespace IRClib.Definitions {
                         continue;
                 }
             }
+            
+            UserCache.PutUser(this);
         }
         
         private User(Hostmask hostmask, string modeString, Guid internalUuid) : this(hostmask, modeString) {

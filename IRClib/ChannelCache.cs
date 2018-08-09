@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using IRClib.Definitions;
 
 namespace IRClib {
@@ -11,6 +12,10 @@ namespace IRClib {
 
         public static void PutChannel(Channel channel) {
             if (!_channels.Exists(chan => chan.Name == channel.Name)) _channels.Add(channel);
+        }
+
+        public static void RemoveChannelByName(string name) {
+            _channels.RemoveAll(chan => chan.Name == name);
         }
     }
 }

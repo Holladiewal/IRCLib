@@ -49,11 +49,16 @@ namespace IRClib.util {
         }
         
         public static event EventHandler<MessageEventArgs> Message;
+        public static event EventHandler<MessageEventArgs> Notice;
         public static event EventHandler<RawMessageEventArgs> RawMessage;
         public static event EventHandler<ModeChangeEventArgs> ModeChange;
 
         public void OnMessage(MessageEventArgs args) {
             Message?.Invoke(this, args);
+        }  
+        
+        public void OnNotice(MessageEventArgs args) {
+            Notice?.Invoke(this, args);
         }
 
         public void OnRawMessage(RawMessageEventArgs args) {
