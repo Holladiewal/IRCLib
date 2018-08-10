@@ -15,11 +15,11 @@ namespace IRClib {
         private List<string> _supportedCapabilities = new List<string>();
 
         public Client(string hostname, int port, string nick, string username, string password, string realname,
-                      bool ssl, bool sasl, string saslMechanism = "") {
+                      bool ssl, bool sasl, string saslMechanism = "", string certpath = "") {
             _nick = nick;
             
             var ip = Dns.GetHostEntry(hostname).AddressList[0];
-            var connection = new Connection(port, ip, ssl);
+            var connection = new Connection(port, ip, ssl, sasl, certpath);
             
             Events.RawMessage += ParseRawMessage;
             
