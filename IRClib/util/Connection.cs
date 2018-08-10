@@ -9,6 +9,7 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 
@@ -40,15 +41,15 @@ namespace IRClib.util {
         
         public Connection(int port, string addr, bool ssl) : this(port, IPAddress.Parse(addr), ssl) { }
 
-        public Connection(int port, IPAddress addr, bool ssl) {
+        public Connection(int port, IPAddress addr, bool ssl, bool saslext = false, string certpath = "") {
             socket = new Socket(addr.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             this.port = port;
             this.addr = addr;
             this.ssl = ssl;
-            Connect();
+            Connect(saslext, certpath);
         }
 
-        private void Connect() {
+        private void Connect(bool saslext, string certpath) {
             socket.Connect(addr, port);
             while (!socket.Connected) { }
             NetworkStream = new NetworkStream(socket);
@@ -57,7 +58,10 @@ namespace IRClib.util {
 
             if (ssl) {
                 var stream = (SslStream) NetworkStream;
-                stream.AuthenticateAsClient("whydoyouhate.me", null, SslProtocols.Tls, false);
+                var clientcert = new X509CertificateCollection();
+                if (saslext) { clientcert.Add(new X509Certificate(certpath)); }
+                
+                stream.AuthenticateAsClient("whydoyouhate.me", clientcert, SslProtocols.Tls, false);
                 
 
             }
