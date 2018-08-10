@@ -118,7 +118,8 @@ namespace IRClib.util {
                 _send(message);
             }
             else {
-                if (message.StartsWith("NICK") || message.StartsWith("USER") || message.StartsWith("PASS") || message.StartsWith("PONG")) {
+                if (message.StartsWith("NICK") || message.StartsWith("USER") || message.StartsWith("PASS") ||
+                    message.StartsWith("PONG") || message.StartsWith("CAP") || message.StartsWith("AUTHENTICATE")) {
                     _send(message);
                     return;
                 }

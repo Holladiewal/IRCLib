@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Net;
 using System.Text;
@@ -13,13 +14,14 @@ namespace IRClib {
         private static readonly Events Events = new Events();
         private List<string> _acknowledgedCapabilities = new List<string>();
         private List<string> _supportedCapabilities = new List<string>();
+        private bool _authInProgress = false;
 
         public Client(string hostname, int port, string nick, string username, string password, string realname,
                       bool ssl, bool sasl, string saslMechanism = "", string certpath = "") {
             _nick = nick;
             
             var ip = Dns.GetHostEntry(hostname).AddressList[0];
-            var connection = new Connection(port, ip, ssl, sasl, certpath);
+            var connection = new Connection(port, ip, ssl, saslMechanism == "EXTERNAL", certpath);
             
             Events.RawMessage += ParseRawMessage;
             
@@ -41,13 +43,14 @@ namespace IRClib {
                     //Console.WriteLine($"Acknowledged Capabilities while waiting for sasl: {capstring}");
                 }
                 connection.Send($"AUTHENTICATE {saslMechanism}");
+                while (!_authInProgress) ;
                 switch (saslMechanism) {
                     case "EXTERNAL": {
                         break;
                     }
                     
                     case "PLAIN": {
-                        connection.Send($"AUTHENTICATE {Convert.ToBase64String(Encoding.UTF8.GetBytes(password))}");
+                        connection.Send($"AUTHENTICATE {Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}\0{username}\0{password}"))}");
                         break;
                     }
                     
@@ -70,7 +73,11 @@ namespace IRClib {
                 if (splitMessage[0].Contains("PING")) {
                     args.Connection.Send("PONG :" + splitMessage[1]);
                     args.Connection.pinged = true;
-                }                
+                }
+
+                if (splitMessage[0].StartsWith("AUTHENTICATE")) {
+                    if (splitMessage[0] == "AUTHENTICATE +") _authInProgress = true;
+                }
             }
             else {
                 message = message.Remove(0, 1);
@@ -171,6 +178,7 @@ namespace IRClib {
 
                             break;
                         }
+
                     }
                 }
             }
