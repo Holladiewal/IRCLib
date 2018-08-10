@@ -8,7 +8,7 @@ namespace IRCLib_Test
     
     public class IRClient {
         public static void Main(string[] args) {
-            var client = new Client("whydoyouhate.me", 6667, "IRCLibTest", "IRCLib", "", "I am an IRCLib");
+            var client = new Client("whydoyouhate.me", 6697, "IRCLibTest", "Holladiwal", "leonard", "I am an IRCLib", true, true, "PLAIN");
             
             Events.RawMessage += OnRawMessage;
             Events.Message += OnMessage;

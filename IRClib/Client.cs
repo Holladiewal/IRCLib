@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using IRClib.Definitions;
@@ -9,23 +11,55 @@ namespace IRClib {
     public class Client {
         private readonly string _nick;
         private static readonly Events Events = new Events();
-        // TODO
+        private List<string> _acknowledgedCapabilities = new List<string>();
+        private List<string> _supportedCapabilities = new List<string>();
 
-        public Client(string hostname, int port, string nick, string username, string password, string realname) {
+        public Client(string hostname, int port, string nick, string username, string password, string realname,
+                      bool ssl, bool sasl, string saslMechanism = "") {
             _nick = nick;
             
             var ip = Dns.GetHostEntry(hostname).AddressList[0];
-            //var ip = IPAddress.Parse("85.214.251.202");
-            var connection = new Connection(port, ip);
+            var connection = new Connection(port, ip, ssl);
             
-            if (String.IsNullOrEmpty(password.Trim()))
+            Events.RawMessage += ParseRawMessage;
+            
+            if (!String.IsNullOrEmpty(password.Trim()) && !sasl)
                 connection.Send("PASS " + password);
             connection.Send("NICK " + _nick);
             connection.Send("USER " + username + " 0 * :" + realname);
-            
-            connection.Send("JOIN #testchannel");
 
-            Events.RawMessage += ParseRawMessage;
+            connection.Send("CAP LS 302");
+            
+            if (sasl) {
+                while (_supportedCapabilities.Count < 1) ;
+                if (_supportedCapabilities.Contains("sasl"))
+                    connection.Send("CAP REQ :sasl");
+                else return;
+                while (!_acknowledgedCapabilities.Contains("sasl")) {
+                    var capstring = "";
+                    _acknowledgedCapabilities.ForEach(strin => capstring += $"{strin} ");
+                    //Console.WriteLine($"Acknowledged Capabilities while waiting for sasl: {capstring}");
+                }
+                connection.Send($"AUTHENTICATE {saslMechanism}");
+                switch (saslMechanism) {
+                    case "EXTERNAL": {
+                        break;
+                    }
+                    
+                    case "PLAIN": {
+                        connection.Send($"AUTHENTICATE {Convert.ToBase64String(Encoding.UTF8.GetBytes(password))}");
+                        break;
+                    }
+                    
+                    default: throw new NotSupportedException($"SASL MECHANISM '{saslMechanism}' is not supported'");
+                }
+                connection.Send("AUTHENTICATE +");
+            }
+            connection.Send("CAP END");
+            
+            // connection.Send("JOIN #testchannel");
+
+
         }
 
         public void ParseRawMessage(object o, Events.RawMessageEventArgs args) {
@@ -40,7 +74,6 @@ namespace IRClib {
             }
             else {
                 message = message.Remove(0, 1);
-                //Console.WriteLine("Parsing message: " + message);
                 var meta = message.Split(new []{':'}, 2)[0];
 
                 var splitMeta = meta.Split(new []{' '}, 4);
@@ -75,12 +108,13 @@ namespace IRClib {
                         case "JOIN": {
                             if (actor.Remove(actor.IndexOf("!", StringComparison.Ordinal)) == _nick) {
                                 // WE joined a channel
-                                ChannelCache.PutChannel(new Channel(target.Remove(0,1), ""));
+                                Console.WriteLine($"target string is: {data}");
+                                ChannelCache.PutChannel(new Channel(data.Remove(0,1), ""));
                             } else {
                                 // somebody else joined a channel we are in
                                 var usr = UserCache.ByHostmask(new Hostmask(actor));
                                 usr = usr ?? new User(new Hostmask(actor)); 
-                                ChannelCache.ByName(target.Remove(0, 1)).AddUser(usr);
+                                ChannelCache.ByName(data.Remove(0, 1)).AddUser(usr);
                             }
 
                             break;
@@ -89,12 +123,12 @@ namespace IRClib {
                         case "PART": {
                             if (actor.Remove(actor.IndexOf("!", StringComparison.Ordinal)) == _nick) {
                                 // WE left a channel
-                                ChannelCache.RemoveChannelByName(target.Remove(0, 1));
+                                ChannelCache.RemoveChannelByName(data.Remove(0, 1));
                             } else {
                                 // somebody else left a channel we are in
                                 var usr = UserCache.ByHostmask(new Hostmask(actor));
                                 usr = usr ?? new User(new Hostmask(actor)); 
-                                ChannelCache.ByName(target.Remove(0, 1)).RemoveUser(usr);
+                                ChannelCache.ByName(data.Remove(0, 1)).RemoveUser(usr);
                             }
 
                             break; 
@@ -102,6 +136,39 @@ namespace IRClib {
 
                         case "NOTICE": {
                             Events.OnNotice(new Events.MessageEventArgs(new Message(new Hostmask(actor), target, data)));
+                            break;
+                        }
+
+                        case "CAP": {
+                            switch (remainder.Split(' ')[0]) {
+                                case "ACK":
+                                    // foreach (var str in data.Split(' ')) { _acknowledgedCapabilities.Add(str); }
+                                    _acknowledgedCapabilities.AddRange(data.Split(' '));
+                                    Events.OnCapAckEvent(new Events.StringEventArgs(data));
+                                    
+                                    var capstring_ACK = "";
+                                    _acknowledgedCapabilities.ForEach(strin => capstring_ACK += $"{strin} ");
+                                    Console.WriteLine($"Caps acknowledged: {capstring_ACK}");
+                                    
+                                    break;
+                                case "NAK": 
+                                    Events.OnCapNakEvent(new Events.StringEventArgs(data));
+                                    break;
+                                
+                                case "LS":
+                                    Console.WriteLine("INCOMING CAP LIST!");
+                                    _supportedCapabilities.AddRange(data.Split(' '));
+                                    if (!(remainder.Length > 2 && remainder.Split(' ')[1] == "*")) {
+                                        var capstring = "";
+                                        _supportedCapabilities.ForEach(strin => capstring += $"{strin} ");
+                                            
+                                        Events.OnCapLsEvent(new Events.StringEventArgs(capstring));
+                                        Console.WriteLine($"END OF CAP LIST, SUPPORTED CAPS: {capstring}");
+                                    }
+
+                                    break;
+                            }
+
                             break;
                         }
                     }

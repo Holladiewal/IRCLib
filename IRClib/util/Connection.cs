@@ -6,7 +6,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
 using System.Text;
 using System.Threading;
 
@@ -14,13 +16,13 @@ namespace IRClib.util {
     public class Connection {
 
         Socket socket;
-        private NetworkStream NetworkStream;
+        private Stream NetworkStream;
         private string oldRawResponse = "";
         // ReSharper disable once InconsistentNaming
         private readonly Events Events = new Events();
         private readonly int port;
         private readonly IPAddress addr;
-        internal bool pinged = false;
+        internal bool pinged = false, ssl;
         private Queue<string> sendQueue = new Queue<string>();
 
         private Thread queueClearer = new Thread(o => {
@@ -36,12 +38,13 @@ namespace IRClib.util {
 
         });
         
-        public Connection(int port, string addr) : this(port, IPAddress.Parse(addr)) { }
+        public Connection(int port, string addr, bool ssl) : this(port, IPAddress.Parse(addr), ssl) { }
 
-        public Connection(int port, IPAddress addr) {
+        public Connection(int port, IPAddress addr, bool ssl) {
             socket = new Socket(addr.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             this.port = port;
             this.addr = addr;
+            this.ssl = ssl;
             Connect();
         }
 
@@ -49,11 +52,22 @@ namespace IRClib.util {
             socket.Connect(addr, port);
             while (!socket.Connected) { }
             NetworkStream = new NetworkStream(socket);
+
+            NetworkStream = ssl ? new SslStream(NetworkStream, false, (sender, certificate, chain, errors) => true) : NetworkStream;
+
+            if (ssl) {
+                var stream = (SslStream) NetworkStream;
+                stream.AuthenticateAsClient("whydoyouhate.me", null, SslProtocols.Tls, false);
+                
+
+            }
+            
             Thread receiverThread = new Thread(o => {
                 while (true) {
                     Receive();
                     Thread.Sleep(500);
                 }
+                // ReSharper disable once FunctionNeverReturns
             });
             receiverThread.Start();
             queueClearer.Start(this);

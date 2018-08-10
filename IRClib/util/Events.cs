@@ -52,6 +52,9 @@ namespace IRClib.util {
         public static event EventHandler<MessageEventArgs> Notice;
         public static event EventHandler<RawMessageEventArgs> RawMessage;
         public static event EventHandler<ModeChangeEventArgs> ModeChange;
+        public static event EventHandler<StringEventArgs> CapAckEvent;
+        public static event EventHandler<StringEventArgs> CapNakEvent;
+        public static event EventHandler<StringEventArgs> CapLsEvent;
 
         public void OnMessage(MessageEventArgs args) {
             Message?.Invoke(this, args);
@@ -67,6 +70,18 @@ namespace IRClib.util {
 
         public void OnModeChangeEvent(ModeChangeEventArgs args) {
             ModeChange?.Invoke(this, args);
+        }
+        
+        public void OnCapAckEvent(StringEventArgs args) {
+            CapAckEvent?.Invoke(this, args);
+        }
+        
+        public void OnCapNakEvent(StringEventArgs args) {
+            CapNakEvent?.Invoke(this, args);
+        }
+        
+        public void OnCapLsEvent(StringEventArgs args) {
+            CapLsEvent?.Invoke(this, args);
         }
     }
 }
