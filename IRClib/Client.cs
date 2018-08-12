@@ -12,16 +12,16 @@ namespace IRClib {
     public class Client {
         private readonly string _nick;
         private static readonly Events Events = new Events();
-        private List<string> _acknowledgedCapabilities = new List<string>();
-        private List<string> _supportedCapabilities = new List<string>();
-        private bool _authInProgress = false;
+        private readonly List<string> _acknowledgedCapabilities = new List<string>();
+        private readonly List<string> _supportedCapabilities = new List<string>();
+        private bool _authInProgress;
 
         public Client(string hostname, int port, string nick, string username, string password, string realname,
                       bool ssl, bool sasl, string saslMechanism = "", string certpath = "") {
             _nick = nick;
             
             var ip = Dns.GetHostEntry(hostname).AddressList[0];
-            var connection = new Connection(port, ip, ssl, saslMechanism == "EXTERNAL", certpath);
+            var connection = new Connection(port, ip, ssl, certpath);
             
             Events.RawMessage += ParseRawMessage;
             
@@ -46,17 +46,34 @@ namespace IRClib {
                 while (!_authInProgress) ;
                 switch (saslMechanism) {
                     case "EXTERNAL": {
+                        connection.Send("AUTHENTICATE +");
                         break;
                     }
                     
                     case "PLAIN": {
-                        connection.Send($"AUTHENTICATE {Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}\0{username}\0{password}"))}");
+                        var bytes = Encoding.UTF8.GetBytes($"{username}\0{username}\0{password}");
+                        var setsNeeded = (int) Math.Ceiling(bytes.Length / 400D);
+                        var byteSets = new byte[setsNeeded][];
+                        for (var i = 0; i < setsNeeded; i++) {
+                            byteSets[i] = new byte[398];
+                            var sizeRemainig = bytes.Length - 398 * Math.Max(i - 1, 0);
+                            Array.Copy(bytes, i * 397, byteSets[i], 0, sizeRemainig);
+                        }
+
+                        for (var i = 0; i < byteSets.Length; i++) {
+                            var byteSet = byteSets[i];
+                            connection.Send(i == byteSets.Length - 1
+                                ? $"AUTHENTICATE {Convert.ToBase64String(bytes)} +"
+                                : $"AUTHENTICATE {Convert.ToBase64String(bytes)}"
+                            );
+                        }
+                        
+                        
                         break;
                     }
                     
                     default: throw new NotSupportedException($"SASL MECHANISM '{saslMechanism}' is not supported'");
                 }
-                connection.Send("AUTHENTICATE +");
             }
             connection.Send("CAP END");
             
@@ -92,96 +109,106 @@ namespace IRClib {
                 if (Regex.IsMatch(action, @"^\d+$")) {
                     // is a numeric
                     
+                    
                 }
                 else {
                     // Not a numeric
 
-                    var data = message.Contains(":") ? message.Split(new []{':'}, 2)[1] : remainder;
-
-                    switch (action) {
-                        case "PRIVMSG": {
-                            Events.OnMessage(new Events.MessageEventArgs(new Message(new Hostmask(actor), target, data)));
-                            break;
-                        }
-
-                        case "MODE": {
-                            var senderHostmask =
-                                actor.Contains("!") ? new Hostmask(actor) : new Hostmask("", "", actor);
-                            IRCObject targetObject = target.StartsWith("#") ? (IRCObject) ChannelCache.ByName(target.Remove(0,1)) : UserCache.ByNick(target);
-                            Events.OnModeChangeEvent(new Events.ModeChangeEventArgs(senderHostmask, targetObject, data));
-                            break;
-                        }
-
-                        case "JOIN": {
-                            if (actor.Remove(actor.IndexOf("!", StringComparison.Ordinal)) == _nick) {
-                                // WE joined a channel
-                                Console.WriteLine($"target string is: {data}");
-                                ChannelCache.PutChannel(new Channel(data.Remove(0,1), ""));
-                            } else {
-                                // somebody else joined a channel we are in
-                                var usr = UserCache.ByHostmask(new Hostmask(actor));
-                                usr = usr ?? new User(new Hostmask(actor)); 
-                                ChannelCache.ByName(data.Remove(0, 1)).AddUser(usr);
-                            }
-
-                            break;
-                        }
-
-                        case "PART": {
-                            if (actor.Remove(actor.IndexOf("!", StringComparison.Ordinal)) == _nick) {
-                                // WE left a channel
-                                ChannelCache.RemoveChannelByName(data.Remove(0, 1));
-                            } else {
-                                // somebody else left a channel we are in
-                                var usr = UserCache.ByHostmask(new Hostmask(actor));
-                                usr = usr ?? new User(new Hostmask(actor)); 
-                                ChannelCache.ByName(data.Remove(0, 1)).RemoveUser(usr);
-                            }
-
-                            break; 
-                        }
-
-                        case "NOTICE": {
-                            Events.OnNotice(new Events.MessageEventArgs(new Message(new Hostmask(actor), target, data)));
-                            break;
-                        }
-
-                        case "CAP": {
-                            switch (remainder.Split(' ')[0]) {
-                                case "ACK":
-                                    // foreach (var str in data.Split(' ')) { _acknowledgedCapabilities.Add(str); }
-                                    _acknowledgedCapabilities.AddRange(data.Split(' '));
-                                    Events.OnCapAckEvent(new Events.StringEventArgs(data));
-                                    
-                                    var capstring_ACK = "";
-                                    _acknowledgedCapabilities.ForEach(strin => capstring_ACK += $"{strin} ");
-                                    Console.WriteLine($"Caps acknowledged: {capstring_ACK}");
-                                    
-                                    break;
-                                case "NAK": 
-                                    Events.OnCapNakEvent(new Events.StringEventArgs(data));
-                                    break;
-                                
-                                case "LS":
-                                    Console.WriteLine("INCOMING CAP LIST!");
-                                    _supportedCapabilities.AddRange(data.Split(' '));
-                                    if (!(remainder.Length > 2 && remainder.Split(' ')[1] == "*")) {
-                                        var capstring = "";
-                                        _supportedCapabilities.ForEach(strin => capstring += $"{strin} ");
-                                            
-                                        Events.OnCapLsEvent(new Events.StringEventArgs(capstring));
-                                        Console.WriteLine($"END OF CAP LIST, SUPPORTED CAPS: {capstring}");
-                                    }
-
-                                    break;
-                            }
-
-                            break;
-                        }
-
-                    }
+                    ParseNonNumeric(message, remainder, action, actor, target);
                 }
             }
+        }
+
+        internal void ParseNonNumeric(string message, string remainder, string action, string actor, string target) {
+            var data = message.Contains(":") ? message.Split(new[] {':'}, 2)[1] : remainder;
+
+            switch (action) {
+                case "PRIVMSG": {
+                    Events.OnMessage(new Events.MessageEventArgs(new Message(new Hostmask(actor), target, data)));
+                    break;
+                }
+
+                case "MODE": {
+                    var senderHostmask =
+                        actor.Contains("!") ? new Hostmask(actor) : new Hostmask("", "", actor);
+                    IRCObject targetObject = target.StartsWith("#")
+                        ? (IRCObject) ChannelCache.ByName(target.Remove(0, 1))
+                        : UserCache.ByNick(target);
+                    Events.OnModeChangeEvent(new Events.ModeChangeEventArgs(senderHostmask, targetObject, data));
+                    break;
+                }
+
+                case "JOIN": {
+                    if (actor.Remove(actor.IndexOf("!", StringComparison.Ordinal)) == _nick) {
+                        // WE joined a channel
+                        Console.WriteLine($"target string is: {data}");
+                        ChannelCache.PutChannel(new Channel(data.Remove(0, 1), ""));
+                    } else {
+                        // somebody else joined a channel we are in
+                        var usr = UserCache.ByHostmask(new Hostmask(actor));
+                        usr = usr ?? new User(new Hostmask(actor));
+                        ChannelCache.ByName(data.Remove(0, 1)).AddUser(usr);
+                    }
+
+                    break;
+                }
+
+                case "PART": {
+                    if (actor.Remove(actor.IndexOf("!", StringComparison.Ordinal)) == _nick) {
+                        // WE left a channel
+                        ChannelCache.RemoveChannelByName(data.Remove(0, 1));
+                    } else {
+                        // somebody else left a channel we are in
+                        var usr = UserCache.ByHostmask(new Hostmask(actor));
+                        usr = usr ?? new User(new Hostmask(actor));
+                        ChannelCache.ByName(data.Remove(0, 1)).RemoveUser(usr);
+                    }
+
+                    break;
+                }
+
+                case "NOTICE": {
+                    Events.OnNotice(new Events.MessageEventArgs(new Message(new Hostmask(actor), target, data)));
+                    break;
+                }
+
+                case "CAP": {
+                    switch (remainder.Split(' ')[0]) {
+                        case "ACK":
+                            // foreach (var str in data.Split(' ')) { _acknowledgedCapabilities.Add(str); }
+                            _acknowledgedCapabilities.AddRange(data.Split(' '));
+                            Events.OnCapAckEvent(new Events.StringEventArgs(data));
+
+                            var capstring_ACK = "";
+                            _acknowledgedCapabilities.ForEach(strin => capstring_ACK += $"{strin} ");
+                            Console.WriteLine($"Caps acknowledged: {capstring_ACK}");
+
+                            break;
+                        case "NAK":
+                            Events.OnCapNakEvent(new Events.StringEventArgs(data));
+                            break;
+
+                        case "LS":
+                            Console.WriteLine("INCOMING CAP LIST!");
+                            _supportedCapabilities.AddRange(data.Split(' '));
+                            if (!(remainder.Length > 2 && remainder.Split(' ')[1] == "*")) {
+                                var capstring = "";
+                                _supportedCapabilities.ForEach(strin => capstring += $"{strin} ");
+
+                                Events.OnCapLsEvent(new Events.StringEventArgs(capstring));
+                                Console.WriteLine($"END OF CAP LIST, SUPPORTED CAPS: {capstring}");
+                            }
+
+                            break;
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        internal void PareNumeric(string message, string remainder, string numeric, string actor, string target) {
+            
         }
     }
 }

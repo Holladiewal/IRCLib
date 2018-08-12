@@ -41,15 +41,15 @@ namespace IRClib.util {
         
         public Connection(int port, string addr, bool ssl) : this(port, IPAddress.Parse(addr), ssl) { }
 
-        public Connection(int port, IPAddress addr, bool ssl, bool saslext = false, string certpath = "") {
+        public Connection(int port, IPAddress addr, bool ssl, string certpath = "") {
             socket = new Socket(addr.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             this.port = port;
             this.addr = addr;
             this.ssl = ssl;
-            Connect(saslext, certpath);
+            Connect(certpath);
         }
 
-        private void Connect(bool saslext, string certpath) {
+        private void Connect(string certpath) {
             socket.Connect(addr, port);
             while (!socket.Connected) { }
             NetworkStream = new NetworkStream(socket);
@@ -59,7 +59,7 @@ namespace IRClib.util {
             if (ssl) {
                 var stream = (SslStream) NetworkStream;
                 var clientcert = new X509CertificateCollection();
-                if (saslext) { clientcert.Add(new X509Certificate(certpath)); }
+                if (certpath.Length > 0) { clientcert.Add(new X509Certificate(certpath)); }
                 
                 stream.AuthenticateAsClient("whydoyouhate.me", clientcert, SslProtocols.Tls, false);
                 
